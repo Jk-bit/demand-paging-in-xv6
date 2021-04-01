@@ -18,16 +18,17 @@ void page_fault_handler(unsigned int fault_addr){
     }
     if(mappages(currproc->pgdir, (char *)fault_addr, PGSIZE, V2P(mem), PTE_W | PTE_U | PTE_P) < 0){
 	    panic("mappages");
-	}
+    }
     // if the page is from stack or heap ---> TODO need to handle more like the page needed is heap or stack
     if(currproc->raw_elf_size < fault_addr){
-	// mapping the memory into the page --> TODO as the mappage is modified we need to add flag which weill identify if the 
-	// we are doing mappages from exec or from pg fault int handler
 	load_frame(mem, (char *)fault_addr);
     }
+    // if the faulted page is from the elf
     else{
+	// if the file size is enough for the page
 	if(currproc->raw_elf_size > fault_addr + PGSIZE)
 	    readi(currproc->ip, P2V(mem), fault_addr, PGSIZE);
+	// if the filesize is not enough the append it with zeroes
 	else{
 	    readi(currproc->ip, P2V(mem), fault_addr, currproc->raw_elf_size - fault_addr);
 	    stosb(mem + (currproc->raw_elf_size - fault_addr), 0, PGROUNDUP(fault_addr) - currproc->raw_elf_size);	    
