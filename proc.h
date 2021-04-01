@@ -39,7 +39,9 @@ struct proc {
   uint sz;                     // Size of process memory (bytes)
   /**********************TWEAK BY ME****************************/
   uint raw_elf_size;	       // Size of the raw elf file (bytes)
-  char buf[PGSIZE];
+  char buf[PGSIZE];	       // buffer to store the each process page into the block
+  struct *block_list blist;
+  struct inode *ip;
   /*************************************************************/
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process

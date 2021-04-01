@@ -26,6 +26,7 @@ exec(char *path, char **argv)
     cprintf("exec: fail\n");
     return -1;
   }
+  curproc->ip = ip;
   ilock(ip);
   pgdir = 0;
   
@@ -59,7 +60,7 @@ exec(char *path, char **argv)
   iunlockput(ip);
   end_op();
   ip = 0;
-  currprc->raw_elf_size = sz;
+  curproc->raw_elf_size = sz;
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -67,7 +68,7 @@ exec(char *path, char **argv)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   // buff containing the stack starting from the top
-  char *buf = (currproc->buf);
+  char *buf = (curproc->buf);
   sp = PGSIZE - 1;
 
   // Push argument strings, prepare rest of stack in ustack.

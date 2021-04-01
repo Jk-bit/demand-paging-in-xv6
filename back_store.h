@@ -21,7 +21,7 @@ typedef struct back_store_buf{
 
 struct block_list{
     int block_no;
-    struct block_list;
+    struct block_list *next;
 }block_list;
 
 typedef struct back_store_proc{
