@@ -1,3 +1,5 @@
+#include "types.h"
+
 struct buf;
 struct context;
 struct file;
@@ -15,6 +17,7 @@ void            binit(void);
 struct buf*     bread(uint, uint);
 void            brelse(struct buf*);
 void            bwrite(struct buf*);
+struct buf*	bget(uint, uint);
 
 // console.c
 void            consoleinit(void);
@@ -66,6 +69,7 @@ void            ioapicinit(void);
 // kalloc.c
 char*           kalloc(void);
 void            kfree(char*);
+void		kinit0(void);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
 
@@ -185,6 +189,15 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+
+// dem_pag.c
+void		page_fault_handler(unsigned int fault_addr);
+void		load_frame(char *pa, char *va);
+
+// back_store.c
+void		store_page(struct proc *currproc, uint va);
+uint		get_free_block();
+void		backstore_init();
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

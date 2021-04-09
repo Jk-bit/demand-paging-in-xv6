@@ -1,3 +1,4 @@
+#include "param.h"
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -37,6 +38,13 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
+  /**********************TWEAK BY ME****************************/
+  uint raw_elf_size;	       // Size of the raw elf file (bytes)
+  char buf[PGSIZE];	       // buffer to store the each process page into the block
+  struct inode *ip;
+  int back_blocks[MAX_BACK_PAGES];
+  int index;
+  /*************************************************************/
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state

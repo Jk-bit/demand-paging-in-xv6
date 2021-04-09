@@ -33,10 +33,14 @@ bootmain(void)
 
   // Load each program segment (ignores ph flags).
   ph = (struct proghdr*)((uchar*)elf + elf->phoff);
+  // Number  of program headers
   eph = ph + elf->phnum;
   for(; ph < eph; ph++){
+      // physical address to load theelf file in the main memory
     pa = (uchar*)ph->paddr;
+    //read segment of size filesz from off in pa ----> read carefully
     readseg(pa, ph->filesz, ph->off);
+    // memsz is size in the main memory if it is greater than filesz it is filled with 0s
     if(ph->memsz > ph->filesz)
       stosb(pa + ph->filesz, 0, ph->memsz - ph->filesz);
   }

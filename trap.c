@@ -60,6 +60,7 @@ trap(struct trapframe *tf)
     ideintr();
     lapiceoi();
     break;
+  // Page fault interrupt
   case T_IRQ0 + IRQ_IDE+1:
     // Bochs generates spurious IDE1 interrupts.
     break;
@@ -77,6 +78,19 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+  /* 
+   * If the page fault occurs check whether the memory is present on the backing store
+   * if yes then read from it else panic;
+   * */
+  case T_PGFLT:
+    /*
+     * The hardware setups the cr2 register with the address
+     * that resulted to page fault
+     */
+    page_fault_handler(rcr2());
+    break;
+
+
 
   //PAGEBREAK: 13
   default:

@@ -17,6 +17,8 @@ extern char end[]; // first address after kernel loaded from ELF file
 int
 main(void)
 {
+//    panic("Hi");
+//  kinit0();
   kinit1(end, P2V(4*1024*1024)); // phys page allocator
   kvmalloc();      // kernel page table
   mpinit();        // detect other processors
@@ -32,6 +34,7 @@ main(void)
   fileinit();      // file table
   ideinit();       // disk 
   startothers();   // start other processors
+  backstore_init();
   kinit2(P2V(4*1024*1024), P2V(PHYSTOP)); // must come after startothers()
   userinit();      // first user process
   mpmain();        // finish this processor's setup

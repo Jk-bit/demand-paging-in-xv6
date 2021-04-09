@@ -6,7 +6,11 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
-
+#include "fs.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "buf.h"
+#include "back_store.h"
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
@@ -70,7 +74,7 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
       return -1;
     if(*pte & PTE_P)
       panic("remap");
-    *pte = pa | perm | PTE_P;
+    *pte = pa | perm ;
     if(a == last)
       break;
     a += PGSIZE;
@@ -108,10 +112,10 @@ static struct kmap {
   uint phys_end;
   int perm;
 } kmap[] = {
- { (void*)KERNBASE, 0,             EXTMEM,    PTE_W}, // I/O space
- { (void*)KERNLINK, V2P(KERNLINK), V2P(data), 0},     // kern text+rodata
- { (void*)data,     V2P(data),     PHYSTOP,   PTE_W}, // kern data+memory
- { (void*)DEVSPACE, DEVSPACE,      0,         PTE_W}, // more devices
+ { (void*)KERNBASE, 0,             EXTMEM,    PTE_W | PTE_P}, // I/O space
+ { (void*)KERNLINK, V2P(KERNLINK), V2P(data), 0 | PTE_P},     // kern text+rodata
+ { (void*)data,     V2P(data),     PHYSTOP,   PTE_W | PTE_P}, // kern data+memory
+ { (void*)DEVSPACE, DEVSPACE,      0,         PTE_W | PTE_P}, // more devices
 };
 
 // Set up kernel part of a page table.
@@ -188,7 +192,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
     panic("inituvm: more than a page");
   mem = kalloc();
   memset(mem, 0, PGSIZE);
-  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
+  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U|PTE_P);
   memmove(mem, init, sz);
 }
 
@@ -221,7 +225,7 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-  char *mem;
+  char *mem = 0;
   uint a;
 
   if(newsz >= KERNBASE)
@@ -231,13 +235,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
-    mem = kalloc();
-    if(mem == 0){
+    //mem = kalloc();
+    /*if(mem == 0){
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
-    }
-    memset(mem, 0, PGSIZE);
+    }*/
+    //memset(mem, 0, PGSIZE);
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
       cprintf("allocuvm out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
@@ -392,3 +396,75 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+
+void page_fault_handler(unsigned int fault_addr){
+    // rounding it down to the base address of the page
+ 
+    fault_addr = PGROUNDDOWN(fault_addr);
+    struct proc *currproc = myproc();
+    struct elfhdr elf;
+    struct proghdr ph;
+    int i, off;
+    char *mem = kalloc();
+    if(mem == 0){
+	panic("No memory");
+	//page_replacement(fault_addr);
+    }
+    if(mappages(currproc->pgdir, (char *)fault_addr, PGSIZE, V2P(mem), PTE_W | PTE_U | PTE_P) < 0){
+	    panic("mappages");
+    }
+    // if the page is from stack or heap ---> TODO need to handle more like the page needed is heap or stack
+    if(currproc->raw_elf_size < fault_addr){
+	load_frame(mem, (char *)fault_addr);
+    }
+    // if the faulted page is from the elf
+    else{
+	readi(currproc->ip, (char *)&elf, 0, sizeof(elf));
+	for(i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)){
+	    if(readi(currproc->ip, (char *)&ph, off, sizeof(ph)) != sizeof(ph))
+		panic("Prog header unable to read");
+	    if(ph.vaddr <= fault_addr && fault_addr <= ph.vaddr + ph.filesz){
+		// if the file size is enough for the page
+		if(ph.vaddr + ph.filesz >= fault_addr + PGSIZE)
+    		    readi(currproc->ip, P2V(mem), ph.off + fault_addr, PGSIZE);
+		// if the filesize is not enough the append it with zeroes
+		else{
+		    readi(currproc->ip, P2V(mem), fault_addr, ph.filesz - fault_addr);
+		    stosb(mem + (currproc->raw_elf_size - fault_addr), 0, PGROUNDUP(fault_addr) - ph.filesz);	    
+		}
+	    }
+	}
+    }
+}    
+
+/*
+ * @breif planning to implement local page replacement
+ * algorithm
+ * @param1 fault_addr : virtual address which caused the fault
+ */
+void page_replacement(unsigned int fault_addr){
+    
+}
+
+/*
+ * @breif a page from the backing store will be loaded in thr
+ * main memory
+ * @param1 : physical address in the memory
+ * @param2 : virtual/logical address of the memory ??is this needed??
+ */
+void load_frame(char *pa, char *va){
+    struct buf *buf;
+    struct proc *currproc = myproc();
+    int i, j;
+    for(i = 0; i < MAX_BACK_PAGES; i++){
+	if(back_store_allocation[currproc->back_blocks[i] - BACKSTORE_START] == (int)va){
+	    break;
+	}
+    }
+    if(i < MAX_BACK_PAGES){
+	for(j = 0; j < 8; j++){
+	    buf = bread(ROOTDEV, (currproc->back_blocks[i]) + j);
+	    memmove(pa + BSIZE * j, buf->data, BSIZE);
+	}
+    }
+}
