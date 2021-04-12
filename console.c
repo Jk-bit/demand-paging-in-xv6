@@ -108,7 +108,7 @@ panic(char *s)
 {
   int i;
   uint pcs[10];
-
+    cprintf("%d", myproc()->pid);
   cli();
   cons.locking = 0;
   // use lapiccpunum so that we can call panic from mycpu()

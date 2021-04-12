@@ -7,9 +7,11 @@
 #include "x86.h"
 #include "elf.h"
 
+
 int
 exec(char *path, char **argv)
 {
+    cprintf("In exec");
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -26,7 +28,7 @@ exec(char *path, char **argv)
     cprintf("exec: fail\n");
     return -1;
   }
-  curproc->ip = ip;
+  safestrcpy((curproc->path), path, strlen(path) + 1);
   ilock(ip);
   pgdir = 0;
   
@@ -56,6 +58,7 @@ exec(char *path, char **argv)
       goto bad;
     /*if(loaduvm(pgdir, (char*)ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad; */
+      
   }
   iunlockput(ip);
   end_op();
@@ -69,23 +72,27 @@ exec(char *path, char **argv)
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   // buff containing the stack starting from the top
   char *buf = (curproc->buf);
-  sp = PGSIZE - 1;
+  sp = PGSIZE - 2;
 
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
       goto bad;
-    sp = (sp - (strlen(argv[argc]) + 1));
-    safestrcpy(&buf[sp], argv[argc], strlen(argv[argc]) + 1);
+    sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
+    cprintf("sp : %d\n", PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp);
+    safestrcpy(&(curproc->buf[sp]), argv[argc], strlen(argv[argc]) + 1);
+
+    cprintf("Argc : %s", &(curproc->buf[sp]));
     /*if(copyout(pgdir, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
       goto bad;*/
-    ustack[3+argc] = sp;
+    ustack[3+argc] = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp;
   }
   ustack[3+argc] = 0;
 
   ustack[0] = 0xffffffff;  // fake return PC
   ustack[1] = argc;
-  ustack[2] = sp - (argc+1)*4;  // argv pointer
+  ustack[2] = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + (sp - (argc+1)*4);  // argv pointer
+  cprintf("Argv pointer : %d\n", ustack[2]);
 
   sp -= (3+argc+1) * 4;
   /*if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)

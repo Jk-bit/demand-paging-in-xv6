@@ -41,6 +41,7 @@ void store_page(struct proc *currproc, uint va){
 	frame = bget(ROOTDEV, block_no + i);
 	memmove(frame->data, (currproc->buf) + BSIZE*i, BSIZE);
 	bwrite(frame);
+	brelse(frame);
     }
     
 }

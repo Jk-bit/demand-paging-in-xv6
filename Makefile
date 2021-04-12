@@ -1,12 +1,12 @@
 OBJS = \
+        back_store.o\
 	bio.o\
-	back_store.o\
 	console.o\
 	exec.o\
 	file.o\
 	fs.o\
-	ide.o\
 	ioapic.o\
+	ide.o\
 	kalloc.o\
 	kbd.o\
 	lapic.o\
@@ -28,7 +28,6 @@ OBJS = \
 	uart.o\
 	vectors.o\
 	vm.o\
-
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
 

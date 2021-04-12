@@ -23,6 +23,7 @@ void
 acquiresleep(struct sleeplock *lk)
 {
   acquire(&lk->lk);
+  
   while (lk->locked) {
     sleep(lk, &lk->lk);
   }

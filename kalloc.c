@@ -82,12 +82,11 @@ kfree(char *v)
 char*
 kalloc(void)
 {
-  struct run *r;
 
+  struct run *r;
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
-  cprintf("%x\n", r);
   if(r)
     kmem.freelist = r->next;
   if(kmem.use_lock)

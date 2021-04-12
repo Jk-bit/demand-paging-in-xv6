@@ -1,4 +1,4 @@
-#include "param.h"
+#include "defs.h"
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -41,7 +41,7 @@ struct proc {
   /**********************TWEAK BY ME****************************/
   uint raw_elf_size;	       // Size of the raw elf file (bytes)
   char buf[PGSIZE];	       // buffer to store the each process page into the block
-  struct inode *ip;
+  char path[20];
   int back_blocks[MAX_BACK_PAGES];
   int index;
   /*************************************************************/

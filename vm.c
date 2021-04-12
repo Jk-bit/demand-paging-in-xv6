@@ -11,6 +11,7 @@
 #include "sleeplock.h"
 #include "buf.h"
 #include "back_store.h"
+#include "file.h"
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
@@ -132,7 +133,7 @@ setupkvm(void)
     panic("PHYSTOP too high");
   for(k = kmap; k < &kmap[NELEM(kmap)]; k++)
     if(mappages(pgdir, k->virt, k->phys_end - k->phys_start,
-                (uint)k->phys_start, k->perm) < 0) {
+                (uint)k->phys_start, k->perm | PTE_P ) < 0) {
       freevm(pgdir);
       return 0;
     }
@@ -187,7 +188,6 @@ void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
   char *mem;
-
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
   mem = kalloc();
@@ -320,23 +320,24 @@ pde_t*
 copyuvm(pde_t *pgdir, uint sz)
 {
   pde_t *d;
-  pte_t *pte;
-  uint pa, i, flags;
-  char *mem;
+  //pte_t *pte;
+  uint i; //flags;
+  char *mem = 0;
 
   if((d = setupkvm()) == 0)
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
-      panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    //if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+    //  panic("copyuvm: pte should exist");
+    /*if(!(*pte & PTE_P))
+      panic("copyuvm: page not present");*/
+    //pa = PTE_ADDR(*pte);
+
+    //flags = PTE_FLAGS(*pte);
+    /*if((mem = kalloc()) == 0)
       goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+    memmove(mem, (char*)P2V(pa), PGSIZE);*/
+    if(mappages(d, (void*)i, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0) {
       kfree(mem);
       goto bad;
     }
@@ -349,7 +350,7 @@ bad:
 }
 
 //PAGEBREAK!
-// Map user virtual address to kernel address.
+    // Map user virtual address to kernel address.
 char*
 uva2ka(pde_t *pgdir, char *uva)
 {
@@ -399,14 +400,16 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 
 void page_fault_handler(unsigned int fault_addr){
     // rounding it down to the base address of the page
- 
     fault_addr = PGROUNDDOWN(fault_addr);
     struct proc *currproc = myproc();
+    cprintf("eip : %d\n", currproc->tf->eip);
     struct elfhdr elf;
     struct proghdr ph;
+    struct inode *ip;
     int i, off;
     char *mem = kalloc();
     if(mem == 0){
+	//cprintf("%d", myproc()->pid);
 	panic("No memory");
 	//page_replacement(fault_addr);
     }
@@ -419,21 +422,31 @@ void page_fault_handler(unsigned int fault_addr){
     }
     // if the faulted page is from the elf
     else{
-	readi(currproc->ip, (char *)&elf, 0, sizeof(elf));
+	ip = namei(currproc->path);
+	if(ip == 0)
+	    panic("Namei path");
+	ilock(ip);
+
+	readi(ip, (char *)&elf, 0, sizeof(elf));
 	for(i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)){
-	    if(readi(currproc->ip, (char *)&ph, off, sizeof(ph)) != sizeof(ph))
+	    if(readi(ip, (char *)&ph, off, sizeof(ph)) != sizeof(ph))
 		panic("Prog header unable to read");
 	    if(ph.vaddr <= fault_addr && fault_addr <= ph.vaddr + ph.filesz){
 		// if the file size is enough for the page
-		if(ph.vaddr + ph.filesz >= fault_addr + PGSIZE)
-    		    readi(currproc->ip, P2V(mem), ph.off + fault_addr, PGSIZE);
+		if(ph.vaddr + ph.filesz >= fault_addr + PGSIZE){
+		    loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, PGSIZE);
+    		    //readi(ip, (mem), ph.off + fault_addr, PGSIZE);
+		}
 		// if the filesize is not enough the append it with zeroes
 		else{
-		    readi(currproc->ip, P2V(mem), fault_addr, ph.filesz - fault_addr);
-		    stosb(mem + (currproc->raw_elf_size - fault_addr), 0, PGROUNDUP(fault_addr) - ph.filesz);	    
+		    loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
+
+		    //cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
+		    //stosb((mem + (currproc->raw_elf_size - fault_addr)), 0, PGROUNDUP(fault_addr) - currproc->raw_elf_size);	    
 		}
 	    }
 	}
+	iunlockput(ip);
     }
 }    
 
@@ -453,7 +466,7 @@ void page_replacement(unsigned int fault_addr){
  * @param2 : virtual/logical address of the memory ??is this needed??
  */
 void load_frame(char *pa, char *va){
-    struct buf *buf;
+    struct buf *buff;
     struct proc *currproc = myproc();
     int i, j;
     for(i = 0; i < MAX_BACK_PAGES; i++){
@@ -463,8 +476,10 @@ void load_frame(char *pa, char *va){
     }
     if(i < MAX_BACK_PAGES){
 	for(j = 0; j < 8; j++){
-	    buf = bread(ROOTDEV, (currproc->back_blocks[i]) + j);
-	    memmove(pa + BSIZE * j, buf->data, BSIZE);
+	    buff = bread(ROOTDEV, (currproc->back_blocks[i]) + j);
+	    memmove(pa + BSIZE * j, buff->data, BSIZE);
+	    brelse(buff);
 	}
+	return;
     }
 }

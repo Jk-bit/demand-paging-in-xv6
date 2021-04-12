@@ -132,7 +132,8 @@ userinit(void)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
-  p->raw_elf_size = PGSIZE;
+  cprintf("%d", _binary_initcode_size);
+  p->raw_elf_size =(int) _binary_initcode_size;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -200,19 +201,24 @@ fork(void)
     return -1;
   }
   np->sz = curproc->sz;
+  np->index = curproc->index;
+  np->raw_elf_size = curproc->raw_elf_size;
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-
+  np->index = curproc->index;
+  for(i = 0; i < curproc->index; i++){
+    np->back_blocks[i] = curproc->back_blocks[i];
+  }
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
+  safestrcpy(np->path, curproc->path, sizeof(curproc->path));
   pid = np->pid;
 
   acquire(&ptable.lock);
