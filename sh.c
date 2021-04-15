@@ -144,9 +144,8 @@ getcmd(char *buf, int nbuf)
 int
 main(void)
 {
-  static char buf[100];
+  char buf[100];
   int fd;
-
   // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
     if(fd >= 3){
@@ -160,12 +159,15 @@ main(void)
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Chdir must be called by the parent, not the child.
       buf[strlen(buf)-1] = 0;  // chop \n
+
       if(chdir(buf+3) < 0)
         printf(2, "cannot cd %s\n", buf+3);
       continue;
     }
-    if(fork1() == 0)
-      runcmd(parsecmd(buf));
+
+    if(fork1() == 0){
+	runcmd(parsecmd(buf));
+    }
     wait();
   }
   exit();
@@ -196,7 +198,6 @@ struct cmd*
 execcmd(void)
 {
   struct execcmd *cmd;
-
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = EXEC;
@@ -327,12 +328,13 @@ struct cmd *nulterminate(struct cmd*);
 struct cmd*
 parsecmd(char *s)
 {
+
   char *es;
   struct cmd *cmd;
-
   es = s + strlen(s);
   cmd = parseline(&s, es);
   peek(&s, es, "");
+
   if(s != es){
     printf(2, "leftovers: %s\n", s);
     panic("syntax");
@@ -345,8 +347,8 @@ struct cmd*
 parseline(char **ps, char *es)
 {
   struct cmd *cmd;
-
   cmd = parsepipe(ps, es);
+
   while(peek(ps, es, "&")){
     gettoken(ps, es, 0, 0);
     cmd = backcmd(cmd);

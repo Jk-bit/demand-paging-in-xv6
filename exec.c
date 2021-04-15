@@ -11,7 +11,6 @@
 int
 exec(char *path, char **argv)
 {
-    cprintf("In exec");
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -72,17 +71,15 @@ exec(char *path, char **argv)
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   // buff containing the stack starting from the top
   char *buf = (curproc->buf);
-  sp = PGSIZE - 2;
+  sp = PGSIZE ;
 
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
       goto bad;
     sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
-    cprintf("sp : %d\n", PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp);
     safestrcpy(&(curproc->buf[sp]), argv[argc], strlen(argv[argc]) + 1);
 
-    cprintf("Argc : %s", &(curproc->buf[sp]));
     /*if(copyout(pgdir, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
       goto bad;*/
     ustack[3+argc] = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp;
@@ -92,12 +89,10 @@ exec(char *path, char **argv)
   ustack[0] = 0xffffffff;  // fake return PC
   ustack[1] = argc;
   ustack[2] = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + (sp - (argc+1)*4);  // argv pointer
-  cprintf("Argv pointer : %d\n", ustack[2]);
-
   sp -= (3+argc+1) * 4;
   /*if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
     goto bad;*/
-  memmove(buf + sp, ustack, 3 + argc + 1);
+  memmove(buf + sp, ustack, (3 + argc + 1)*4);
     store_page(curproc, sz - 1*PGSIZE);
   // Save program name for debugging.
   for(last=s=path; *s; s++)

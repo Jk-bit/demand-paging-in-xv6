@@ -18,14 +18,13 @@ union header {
 
 typedef union header Header;
 
-static Header base;
-static Header *freep;
+static Header base ;
+static Header *freep = 0;
 
 void
 free(void *ap)
 {
   Header *bp, *p;
-
   bp = (Header*)ap - 1;
   for(p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr)
     if(p >= p->s.ptr && (bp > p || bp < p->s.ptr))
@@ -65,13 +64,13 @@ malloc(uint nbytes)
 {
   Header *p, *prevp;
   uint nunits;
-
   nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1;
   if((prevp = freep) == 0){
     base.s.ptr = freep = prevp = &base;
     base.s.size = 0;
   }
   for(p = prevp->s.ptr; ; prevp = p, p = p->s.ptr){
+
     if(p->s.size >= nunits){
       if(p->s.size == nunits)
         prevp->s.ptr = p->s.ptr;
@@ -88,3 +87,4 @@ malloc(uint nbytes)
         return 0;
   }
 }
+

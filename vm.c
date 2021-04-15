@@ -311,22 +311,23 @@ clearpteu(pde_t *pgdir, char *uva)
   pte = walkpgdir(pgdir, uva, 0);
   if(pte == 0)
     panic("clearpteu");
-  *pte &= ~PTE_U;
+  *pte &= ~PTE_U ;
+  *pte = *pte | PTE_P;
 }
 
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
-copyuvm(pde_t *pgdir, uint sz)
+copyuvm(struct proc *dst, struct proc *src)
 {
   pde_t *d;
   //pte_t *pte;
   uint i; //flags;
   char *mem = 0;
-
+    char *stack_page;
   if((d = setupkvm()) == 0)
     return 0;
-  for(i = 0; i < sz; i += PGSIZE){
+  for(i = 0; i < src->sz; i += PGSIZE){
     //if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
     //  panic("copyuvm: pte should exist");
     /*if(!(*pte & PTE_P))
@@ -341,7 +342,12 @@ copyuvm(pde_t *pgdir, uint sz)
       kfree(mem);
       goto bad;
     }
+    
   }
+  stack_page = (char *)(PGROUNDUP(src->raw_elf_size) + PGSIZE);
+  memmove(dst->buf, stack_page, PGSIZE);
+  store_page(dst, (uint)stack_page);
+
   return d;
 
 bad:
@@ -402,7 +408,6 @@ void page_fault_handler(unsigned int fault_addr){
     // rounding it down to the base address of the page
     fault_addr = PGROUNDDOWN(fault_addr);
     struct proc *currproc = myproc();
-    cprintf("eip : %d\n", currproc->tf->eip);
     struct elfhdr elf;
     struct proghdr ph;
     struct inode *ip;
@@ -431,7 +436,7 @@ void page_fault_handler(unsigned int fault_addr){
 	for(i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)){
 	    if(readi(ip, (char *)&ph, off, sizeof(ph)) != sizeof(ph))
 		panic("Prog header unable to read");
-	    if(ph.vaddr <= fault_addr && fault_addr <= ph.vaddr + ph.filesz){
+	    if(ph.vaddr <= fault_addr && fault_addr <= ph.vaddr + ph.memsz){
 		// if the file size is enough for the page
 		if(ph.vaddr + ph.filesz >= fault_addr + PGSIZE){
 		    loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, PGSIZE);
@@ -440,9 +445,9 @@ void page_fault_handler(unsigned int fault_addr){
 		// if the filesize is not enough the append it with zeroes
 		else{
 		    loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
-
+		    
 		    //cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
-		    //stosb((mem + (currproc->raw_elf_size - fault_addr)), 0, PGROUNDUP(fault_addr) - currproc->raw_elf_size);	    
+		    stosb((mem + (ph.filesz - fault_addr)), 0, ph.memsz - ph.filesz);	    
 		}
 	    }
 	}
@@ -474,10 +479,11 @@ void load_frame(char *pa, char *va){
 	    break;
 	}
     }
+    
     if(i < MAX_BACK_PAGES){
 	for(j = 0; j < 8; j++){
 	    buff = bread(ROOTDEV, (currproc->back_blocks[i]) + j);
-	    memmove(pa + BSIZE * j, buff->data, BSIZE);
+	    memmove((pa + BSIZE * j), buff->data, BSIZE);
 	    brelse(buff);
 	}
 	return;

@@ -88,7 +88,7 @@ trap(struct trapframe *tf)
      * that resulted to page fault
      */
     page_fault_handler(rcr2());
-    lapiceoi();
+    //lapiceoi();
     break;
 
 

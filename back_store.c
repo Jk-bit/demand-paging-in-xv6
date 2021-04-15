@@ -54,7 +54,7 @@ uint get_free_block(){
 	    return BACKSTORE_START + i;
 	}
     }
-    return 0;
+    return -1;
 }
 
 

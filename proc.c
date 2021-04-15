@@ -162,13 +162,20 @@ userinit(void)
 int
 growproc(int n)
 {
-  uint sz;
+  uint sz, initial_sz;
   struct proc *curproc = myproc();
 
   sz = curproc->sz;
+  initial_sz = sz;
   if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
+      for(; initial_sz <= sz; initial_sz += PGSIZE){
+	  cprintf(" growproc");
+	stosb(curproc->buf, 0, PGSIZE);
+	store_page(curproc, initial_sz);
+      }
       return -1;
+    }
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
@@ -194,24 +201,19 @@ fork(void)
   }
 
   // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  if((np->pgdir = copyuvm(np, curproc)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
   }
   np->sz = curproc->sz;
-  np->index = curproc->index;
   np->raw_elf_size = curproc->raw_elf_size;
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-  np->index = curproc->index;
-  for(i = 0; i < curproc->index; i++){
-    np->back_blocks[i] = curproc->back_blocks[i];
-  }
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
@@ -298,7 +300,7 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        freevm(p->pgdir);
+        //freevm(p->pgdir);
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
