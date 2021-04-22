@@ -285,7 +285,7 @@ create(char *path, short type, short major, short minor)
 int
 sys_open(void)
 {
-  char *path;
+    char *path;
   int fd, omode;
   struct file *f;
   struct inode *ip;
@@ -330,6 +330,7 @@ sys_open(void)
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
   return fd;
+
 }
 
 int

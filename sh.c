@@ -75,6 +75,7 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit();
+    printf(1, "in runcmd");
     exec(ecmd->argv[0], ecmd->argv);
     printf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
@@ -364,7 +365,6 @@ struct cmd*
 parsepipe(char **ps, char *es)
 {
   struct cmd *cmd;
-
   cmd = parseexec(ps, es);
   if(peek(ps, es, "|")){
     gettoken(ps, es, 0, 0);
@@ -424,7 +424,6 @@ parseexec(char **ps, char *es)
 
   if(peek(ps, es, "("))
     return parseblock(ps, es);
-
   ret = execcmd();
   cmd = (struct execcmd*)ret;
 

@@ -267,7 +267,6 @@ iget(uint dev, uint inum)
   ip->ref = 1;
   ip->valid = 0;
   release(&icache.lock);
-
   return ip;
 }
 
@@ -542,7 +541,6 @@ dirlookup(struct inode *dp, char *name, uint *poff)
       return iget(dp->dev, inum);
     }
   }
-
   return 0;
 }
 
@@ -628,22 +626,25 @@ namex(char *path, int nameiparent, char *name)
   if(*path == '/'){
     ip = iget(ROOTDEV, ROOTINO);
   }
-  else
+  else{
     ip = idup(myproc()->cwd);
-
+}
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
     if(ip->type != T_DIR){
+
       iunlockput(ip);
       return 0;
     }
     if(nameiparent && *path == '\0'){
       // Stop one level early.
+      
       iunlock(ip);
       return ip;
     }
     if((next = dirlookup(ip, name, 0)) == 0){
       iunlockput(ip);
+
       return 0;
     }
     iunlockput(ip);

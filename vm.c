@@ -73,8 +73,9 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
   for(;;){
     if((pte = walkpgdir(pgdir, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_P)
-      panic("remap");
+    if(*pte & PTE_P){
+	panic("remap");
+    }
     *pte = pa | perm ;
     if(a == last)
       break;
@@ -225,7 +226,7 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-  char *mem = 0;
+  char *mem = (char *)V2P(0);
   uint a;
 
   if(newsz >= KERNBASE)
@@ -272,8 +273,9 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
     else if((*pte & PTE_P) != 0){
       pa = PTE_ADDR(*pte);
-      if(pa == 0)
+      if(pa == 0){
         panic("kfree");
+      }
       char *v = P2V(pa);
       kfree(v);
       *pte = 0;
@@ -298,7 +300,7 @@ freevm(pde_t *pgdir)
       kfree(v);
     }
   }
-  kfree((char*)pgdir);
+  kfree((char*)(pgdir));
 }
 
 // Clear PTE_U on a page. Used to create an inaccessible
@@ -312,7 +314,17 @@ clearpteu(pde_t *pgdir, char *uva)
   if(pte == 0)
     panic("clearpteu");
   *pte &= ~PTE_U ;
-  *pte = *pte | PTE_P;
+  *pte = *pte;
+}
+
+void clearptep(pde_t *pgdir, char *uva){
+    pte_t *pte;
+    pte = walkpgdir(pgdir, uva, 0);
+    if(pte == 0){
+	panic("clearptep");
+    }
+    *pte &= ~PTE_P;
+    *pte = *pte;
 }
 
 // Given a parent process's page table, create a copy
@@ -321,32 +333,54 @@ pde_t*
 copyuvm(struct proc *dst, struct proc *src)
 {
   pde_t *d;
-  //pte_t *pte;
-  uint i; //flags;
+  pte_t *pte;
+  uint i, flags, pa;
   char *mem = 0;
-    char *stack_page;
+    //char *stack_page;
   if((d = setupkvm()) == 0)
     return 0;
-  for(i = 0; i < src->sz; i += PGSIZE){
-    //if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
-    //  panic("copyuvm: pte should exist");
-    /*if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");*/
+  for(i = 0; i < src->raw_elf_size; i += PGSIZE){
+    if((pte = walkpgdir(src->pgdir, (void *) i, 0)) == 0)
+      panic("copyuvm: pte should exist");
+    if(!(*pte & PTE_P)){
+      if(mappages(d, (char*)i, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0) {
+	kfree(mem);
+	goto bad;
+      }
+    }
+    else{
+	pa = PTE_ADDR(*pte);
+	flags = PTE_FLAGS(*pte);
+	if((mem = kalloc()) == 0){
+	    goto bad;
+	}	
+	memmove(mem, (char *)P2V(pa), PGSIZE);
+	if(mappages(d, (char *)i, PGSIZE, V2P(mem), flags) < 0){
+	    kfree(mem);
+	    goto bad;
+	}
+    }
     //pa = PTE_ADDR(*pte);
 
     //flags = PTE_FLAGS(*pte);
     /*if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)P2V(pa), PGSIZE);*/
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0) {
-      kfree(mem);
-      goto bad;
-    }
     
   }
-  stack_page = (char *)(PGROUNDUP(src->raw_elf_size) + PGSIZE);
-  memmove(dst->buf, stack_page, PGSIZE);
-  store_page(dst, (uint)stack_page);
+  pte = walkpgdir(src->pgdir, (char *)(PGROUNDUP(src->raw_elf_size) + PGSIZE), 0);
+  if(*pte & PTE_P){
+    memmove(dst->buf, (char *)(PGROUNDUP(src->raw_elf_size) + PGSIZE), PGSIZE);
+    if(store_page(dst, (PGROUNDUP(src->raw_elf_size) + PGSIZE)) < 0){
+	panic("no memory to store stack in backing store\n");
+    }
+  }
+  else{
+    load_frame(dst->buf, (char *)(PGROUNDUP(src->raw_elf_size) + PGSIZE));
+    if(store_page(dst, (PGROUNDUP(src->raw_elf_size) + PGSIZE)) < 0){
+	panic("no memory to store stack in backing store\n");
+    }
+  }
 
   return d;
 
@@ -406,6 +440,12 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 
 void page_fault_handler(unsigned int fault_addr){
     // rounding it down to the base address of the page
+    //cprintf("fault address %d pid : %d\n", fault_addr, myproc()->pid);
+    if((uint)fault_addr >= KERNBASE){
+	cprintf("crossed the boundary of the user memory\n");
+	myproc()->killed = 1;
+	exit();
+    }
     fault_addr = PGROUNDDOWN(fault_addr);
     struct proc *currproc = myproc();
     struct elfhdr elf;
@@ -427,9 +467,13 @@ void page_fault_handler(unsigned int fault_addr){
     }
     // if the faulted page is from the elf
     else{
+	//ip from the path
+	begin_op();
 	ip = namei(currproc->path);
-	if(ip == 0)
+	if(ip == 0){
+//	    cprintf("addr of ip : %d\n", ip);
 	    panic("Namei path");
+	}
 	ilock(ip);
 
 	readi(ip, (char *)&elf, 0, sizeof(elf));
@@ -444,14 +488,24 @@ void page_fault_handler(unsigned int fault_addr){
 		}
 		// if the filesize is not enough the append it with zeroes
 		else{
-		    loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
-		    
-		    //cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
-		    stosb((mem + (ph.filesz - fault_addr)), 0, ph.memsz - ph.filesz);	    
+		    if(fault_addr >= ph.filesz){
+			if(fault_addr + PGSIZE <= ph.memsz){
+			    stosb(mem, 0, PGSIZE);
+			}
+			else{
+			    stosb(mem, 0, ph.memsz - fault_addr);
+			}
+		    }
+		    else{
+			loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
+			//cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
+			stosb((mem + (ph.filesz - fault_addr)), 0, ph.memsz - ph.filesz);	    
+		    }
 		}
 	    }
 	}
-	iunlockput(ip);
+	iunlockput(ip);    
+	end_op();
     }
 }    
 

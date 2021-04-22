@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "back_store.h"
 
 struct {
   struct spinlock lock;
@@ -75,13 +76,14 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-
+    int i = 0;
   acquire(&ptable.lock);
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      goto found;
-
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++, i++){
+    if(p->state == UNUSED){
+	goto found;
+    }
+  }
   release(&ptable.lock);
   return 0;
 
@@ -163,19 +165,29 @@ int
 growproc(int n)
 {
   uint sz, initial_sz;
+  int ret;
   struct proc *curproc = myproc();
-
+    uint npages = 0;
   sz = curproc->sz;
   initial_sz = sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
-      for(; initial_sz <= sz; initial_sz += PGSIZE){
+            return -1;
+    }
+    npages = (PGROUNDUP(sz) - PGROUNDUP(initial_sz))/PGSIZE;
+    for(int i = 0; i < npages; i++){
+	stosb(curproc->buf, 0, PGSIZE);
+	ret = store_page(curproc, initial_sz);
+	if(ret < 0){
+	    return -1;
+	}
+    }
+    /*for(; initial_sz <= sz; initial_sz += PGSIZE){
 	  cprintf(" growproc");
 	stosb(curproc->buf, 0, PGSIZE);
 	store_page(curproc, initial_sz);
-      }
-      return -1;
-    }
+    }*/
+
   } else if(n < 0){
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
@@ -195,22 +207,38 @@ fork(void)
   struct proc *np;
   struct proc *curproc = myproc();
 
+  //int block_no;
   // Allocate process.
   if((np = allocproc()) == 0){
-    return -1;
+      return -1;
   }
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(np, curproc)) == 0){
+
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
   }
+  /*for(int j = 0; j < MAX_BACK_PAGES; j++){
+    if((block_no = curproc->back_blocks[j]) == 0){
+	continue;
+    }
+    cprintf("block no : %d\n", block_no);
+    load_frame(np->buf, (char *)back_store_allocation[block_no - BACKSTORE_START]);
+    store_page(np, back_store_allocation[block_no - BACKSTORE_START]);
+  }*/
+  /*for(int j = 0; j < curproc->sz; j += PGSIZE){
+    pte = walkpgdir(np->pgdir, j, 0);
+    *pte &= ~PTE_P;
+    *pte = *pte;
+  } */ 
   np->sz = curproc->sz;
   np->raw_elf_size = curproc->raw_elf_size;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  //cprintf("eip %d\n", curproc->tf->eip);
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -221,8 +249,9 @@ fork(void)
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
   safestrcpy(np->path, curproc->path, sizeof(curproc->path));
+  //cprintf("path %s\n", curproc->path);
+  //memmove(np->ip, curproc->ip, sizeof(struct inode));
   pid = np->pid;
-
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
@@ -241,9 +270,10 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-
-  if(curproc == initproc)
+    
+  if(curproc == initproc){
     panic("init exiting");
+}
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -271,7 +301,6 @@ exit(void)
         wakeup1(initproc);
     }
   }
-
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
@@ -300,7 +329,8 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        //freevm(p->pgdir);
+        freevm(p->pgdir);
+	freebs(p);
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;

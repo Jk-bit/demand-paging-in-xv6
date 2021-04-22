@@ -24,15 +24,15 @@ void backstore_init(){
 }
 
 
-void store_page(struct proc *currproc, uint va){
+int store_page(struct proc *currproc, uint va){
     uint block_no;
     int i;
     if((block_no = get_free_block()) == -1){
-	panic("No free block in back_store");	
+	return -1;
     }
     back_store_allocation[block_no - BACKSTORE_START] = va;
     if(currproc->index == MAX_BACK_PAGES - 1){
-	panic("Process out of bound of backstore memory");
+	return -1;
     }
     currproc->back_blocks[currproc->index++] = block_no;
     struct buf *frame;
@@ -43,7 +43,7 @@ void store_page(struct proc *currproc, uint va){
 	bwrite(frame);
 	brelse(frame);
     }
-    
+    return 1; 
 }
 
 
@@ -57,4 +57,9 @@ uint get_free_block(){
     return -1;
 }
 
+void freebs(struct proc *curproc){
+    for(int i = 0; i < curproc->index; i++){
+	back_store_allocation[curproc->back_blocks[i] - BACKSTORE_START] = -1;
+    }    
+}
 

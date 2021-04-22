@@ -11,16 +11,17 @@
 char buf[8192];
 char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
+int std = 1;
 int stdout = 1;
 
 // does chdir() call iput(p->cwd) in a transaction?
 void
 iputtest(void)
 {
-  printf(stdout, "iput test\n");
+  printf(std, "iput test\n");
 
   if(mkdir("iputdir") < 0){
-    printf(stdout, "mkdir failed\n");
+    printf(std, "mkdir failed\n");
     exit();
   }
   if(chdir("iputdir") < 0){
@@ -120,19 +121,20 @@ opentest(void)
 {
   int fd;
 
-  printf(stdout, "open test\n");
+  printf(1, "open test\n");
+  printf(1, "sys_open");
   fd = open("echo", 0);
   if(fd < 0){
-    printf(stdout, "open echo failed!\n");
+    printf(1, "open echo failed!\n");
     exit();
   }
   close(fd);
   fd = open("doesnotexist", 0);
   if(fd >= 0){
-    printf(stdout, "open doesnotexist succeeded!\n");
+    printf(1, "open doesnotexist succeeded!\n");
     exit();
   }
-  printf(stdout, "open test ok\n");
+  printf(1, "open test ok\n");
 }
 
 void
@@ -535,11 +537,12 @@ fourfiles(void)
 
     if(pid == 0){
       fd = open(fname, O_CREATE | O_RDWR);
+
+	printf(1, "pid 0");
       if(fd < 0){
         printf(1, "create failed\n");
         exit();
       }
-
       memset(buf, '0'+pi, 512);
       for(i = 0; i < 12; i++){
         if((n = write(fd, buf, 500)) != 500){
@@ -555,7 +558,7 @@ fourfiles(void)
     wait();
   }
 
-  for(i = 0; i < 2; i++){
+  for(i = 0; i < 4; i++){
     fname = names[i];
     fd = open(fname, 0);
     total = 0;
@@ -569,6 +572,7 @@ fourfiles(void)
       total += n;
     }
     close(fd);
+
     if(total != 12*500){
       printf(1, "wrong length %d\n", total);
       exit();
@@ -591,12 +595,14 @@ createdelete(void)
 
   for(pi = 0; pi < 4; pi++){
     pid = fork();
+    printf(1, "forked\n");
     if(pid < 0){
       printf(1, "fork failed\n");
       exit();
     }
 
     if(pid == 0){
+	printf(1, "child\n");
       name[0] = 'p' + pi;
       name[2] = '\0';
       for(i = 0; i < N; i++){
@@ -1426,6 +1432,7 @@ sbrktest(void)
   int i;
   for(i = 0; i < 5000; i++){
     b = sbrk(1);
+    //printf(1, "i : %d\n", i);
     if(b != a){
       printf(stdout, "sbrk test failed %d %x %x\n", i, a, b);
       exit();
@@ -1440,6 +1447,7 @@ sbrktest(void)
   }
   c = sbrk(1);
   c = sbrk(1);
+
   if(c != a + 1){
     printf(stdout, "sbrk test failed post-fork\n");
     exit();
@@ -1449,7 +1457,7 @@ sbrktest(void)
   wait();
 
   // can one grow address space to something big?
-#define BIG (100*1024*1024)
+#define BIG (100*1024)
   a = sbrk(0);
   amt = (BIG) - (uint)a;
   p = sbrk(amt);
@@ -1542,7 +1550,7 @@ sbrktest(void)
 
   if(sbrk(0) > oldbrk)
     sbrk(-(sbrk(0) - oldbrk));
-
+    
   printf(stdout, "sbrk test OK\n");
 }
 
@@ -1615,15 +1623,20 @@ bigargtest(void)
   int pid, fd;
 
   unlink("bigarg-ok");
+  printf(1, "bigargtest");
   pid = fork();
   if(pid == 0){
-    static char *args[MAXARG];
+     char *args[MAXARG];
+
     int i;
-    for(i = 0; i < MAXARG-1; i++)
-      args[i] = "bigargs test: failed\n                                                                                                                                                                                                       ";
+    for(i = 0; i < MAXARG - 1; i++){
+
+      args[i] = "bigargs test: failed\n";
+    }
     args[MAXARG-1] = 0;
     printf(stdout, "bigarg test\n");
-    exec("echo", args);
+    printf(1, "args : %s\n", args[0]);
+    //exec("echo", args);
     printf(stdout, "bigarg test ok\n");
     fd = open("bigarg-ok", O_CREATE);
     close(fd);
@@ -1748,7 +1761,9 @@ rand()
 int
 main(int argc, char *argv[])
 {
+  stdout = 1;
   printf(1, "usertests starting\n");
+  printf(1, "address of stdout : %d\n", &stdout);
 
   if(open("usertests.ran", 0) >= 0){
     printf(1, "already ran user tests -- rebuild fs.img\n");
@@ -1756,30 +1771,30 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
-/*  argptest();
-  createdelete();
-  linkunlink();
-  concreate();
-  fourfiles();
-  sharedfd();
+ argptest();
+  createdelete(); 
+linkunlink(); 
+concreate();
+ fourfiles(); 
+ sharedfd();
 
-  bigargtest();
-  bigwrite();
-  bigargtest();
-  bsstest();*/
-  sbrktest();
-  /*validatetest();
+bigargtest(); 
+bigwrite(); 
+ bigargtest();
+  bsstest(); 
+sbrktest(); 
+  validatetest();
+ opentest();
 
-  opentest();
   writetest();
   writetest1();
-  createtest();
+ createtest();
 
   openiputtest();
   exitiputtest();
-  iputtest();
+  iputtest(); 
 
-  mem();
+  mem(); //does not work
   pipe1();
   preempt();
   exitwait();
@@ -1795,9 +1810,9 @@ main(int argc, char *argv[])
   forktest();
   bigdir(); // slow
 
-  uio();*/
+  uio();
 
-  exectest();
+ exectest();
 
-  exit();
+  exit(); 
 }

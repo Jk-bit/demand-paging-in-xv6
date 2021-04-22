@@ -92,7 +92,7 @@ main(int argc, char *argv[])
 
   // 1 fs block = 1 disk sector
   nmeta = 2 + nlog + ninodeblocks + nbitmap;
-  nblocks = FSSIZE - nmeta;
+  nblocks = FSSIZE + BACKSTORE_SIZE - nmeta;
 
   sb.size = xint(FSSIZE);
   sb.nblocks = xint(nblocks);

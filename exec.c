@@ -11,6 +11,7 @@
 int
 exec(char *path, char **argv)
 {
+    cprintf("in exec %s\n", path);
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -21,13 +22,13 @@ exec(char *path, char **argv)
   struct proc *curproc = myproc();
 
   begin_op();
-
   if((ip = namei(path)) == 0){
     end_op();
-    cprintf("exec: fail\n");
+    cprintf("ip not found exec: fail\n");
     return -1;
   }
   safestrcpy((curproc->path), path, strlen(path) + 1);
+  //memmove(curproc->ipm (*ip), sizeof(struct inode));  
   ilock(ip);
   pgdir = 0;
   
@@ -62,7 +63,7 @@ exec(char *path, char **argv)
   iunlockput(ip);
   end_op();
   ip = 0;
-  curproc->raw_elf_size = sz;
+    curproc->raw_elf_size = sz;
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -93,7 +94,9 @@ exec(char *path, char **argv)
   /*if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
     goto bad;*/
   memmove(buf + sp, ustack, (3 + argc + 1)*4);
-    store_page(curproc, sz - 1*PGSIZE);
+  if(store_page(curproc, sz - 1*PGSIZE) < 0){
+    panic("no memory to save stack in backing store");
+  }
   // Save program name for debugging.
   for(last=s=path; *s; s++)
     if(*s == '/')
