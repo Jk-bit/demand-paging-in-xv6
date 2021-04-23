@@ -441,6 +441,8 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 void page_fault_handler(unsigned int fault_addr){
     // rounding it down to the base address of the page
     //cprintf("fault address %d pid : %d\n", fault_addr, myproc()->pid);
+    //if the required address is beyond the user memory space 
+    //checked in usertests.c --> sbrktest()
     if((uint)fault_addr >= KERNBASE){
 	cprintf("crossed the boundary of the user memory\n");
 	myproc()->killed = 1;
@@ -461,7 +463,7 @@ void page_fault_handler(unsigned int fault_addr){
     if(mappages(currproc->pgdir, (char *)fault_addr, PGSIZE, V2P(mem), PTE_W | PTE_U | PTE_P) < 0){
 	    panic("mappages");
     }
-    // if the page is from stack or heap ---> TODO need to handle more like the page needed is heap or stack
+    // if the page is from stack or heap
     if(currproc->raw_elf_size < fault_addr){
 	load_frame(mem, (char *)fault_addr);
     }
@@ -488,6 +490,7 @@ void page_fault_handler(unsigned int fault_addr){
 		}
 		// if the filesize is not enough the append it with zeroes
 		else{
+		    // if the fault address(page) is for the bss section completely
 		    if(fault_addr >= ph.filesz){
 			if(fault_addr + PGSIZE <= ph.memsz){
 			    stosb(mem, 0, PGSIZE);
@@ -496,6 +499,7 @@ void page_fault_handler(unsigned int fault_addr){
 			    stosb(mem, 0, ph.memsz - fault_addr);
 			}
 		    }
+		    // if the required page overlaps with (text + data) and bss section
 		    else{
 			loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
 			//cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
@@ -509,7 +513,7 @@ void page_fault_handler(unsigned int fault_addr){
     }
 }    
 
-/*
+/* TODO Not part of academic project but trying to implement in future
  * @breif planning to implement local page replacement
  * algorithm
  * @param1 fault_addr : virtual address which caused the fault
@@ -542,4 +546,5 @@ void load_frame(char *pa, char *va){
 	}
 	return;
     }
+    //panic("No such frame in backing store");
 }

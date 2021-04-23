@@ -11,7 +11,6 @@
 int
 exec(char *path, char **argv)
 {
-    cprintf("in exec %s\n", path);
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -27,8 +26,8 @@ exec(char *path, char **argv)
     cprintf("ip not found exec: fail\n");
     return -1;
   }
+  //path is required to load the code + text section in the memory
   safestrcpy((curproc->path), path, strlen(path) + 1);
-  //memmove(curproc->ipm (*ip), sizeof(struct inode));  
   ilock(ip);
   pgdir = 0;
   
@@ -63,7 +62,8 @@ exec(char *path, char **argv)
   iunlockput(ip);
   end_op();
   ip = 0;
-    curproc->raw_elf_size = sz;
+  // raw_elf_size is the size of the code + text + bss not page aligned
+  curproc->raw_elf_size = sz;
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -74,7 +74,7 @@ exec(char *path, char **argv)
   char *buf = (curproc->buf);
   sp = PGSIZE ;
 
-  // Push argument strings, prepare rest of stack in ustack.
+  // Storing the argument strings in the buf, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
       goto bad;

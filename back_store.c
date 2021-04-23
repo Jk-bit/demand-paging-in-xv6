@@ -36,7 +36,6 @@ int store_page(struct proc *currproc, uint va){
     }
     currproc->back_blocks[currproc->index++] = block_no;
     struct buf *frame;
-    //Come up with a better solution
     for(i = 0; i < 8; i++){
 	frame = bget(ROOTDEV, block_no + i);
 	memmove(frame->data, (currproc->buf) + BSIZE*i, BSIZE);
