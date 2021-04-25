@@ -94,7 +94,7 @@ main(int argc, char *argv[])
   nmeta = 2 + nlog + ninodeblocks + nbitmap;
   nblocks = FSSIZE + BACKSTORE_SIZE - nmeta;
 
-  sb.size = xint(FSSIZE);
+  sb.size = xint(FSSIZE );
   sb.nblocks = xint(nblocks);
   sb.ninodes = xint(NINODES);
   sb.nlog = xint(nlog);
@@ -107,7 +107,7 @@ main(int argc, char *argv[])
 
   freeblock = nmeta;     // the first free block that we can allocate
 
-  for(i = 0; i < FSSIZE; i++)
+  for(i = 0; i < FSSIZE + BACKSTORE_SIZE; i++)
     wsect(i, zeroes);
 
   memset(buf, 0, sizeof(buf));

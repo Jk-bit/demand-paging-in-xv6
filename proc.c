@@ -176,7 +176,8 @@ growproc(int n)
     }
     npages = (PGROUNDUP(sz) - PGROUNDUP(initial_sz))/PGSIZE;
     for(int i = 0; i < npages; i++){
-	stosb(curproc->buf, 0, PGSIZE);
+	memset(curproc->buf, 0, PGSIZE);
+	//stosb(curproc->buf, 0, PGSIZE);
 	ret = store_page(curproc, initial_sz);
 	if(ret < 0){
 	    return -1;

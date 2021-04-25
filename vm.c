@@ -440,13 +440,13 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 
 void page_fault_handler(unsigned int fault_addr){
     // rounding it down to the base address of the page
-    //cprintf("fault address %d pid : %d\n", fault_addr, myproc()->pid);
     //if the required address is beyond the user memory space 
     //checked in usertests.c --> sbrktest()
     if((uint)fault_addr >= KERNBASE){
 	cprintf("crossed the boundary of the user memory\n");
 	myproc()->killed = 1;
-	exit();
+	return;
+	//exit();
     }
     fault_addr = PGROUNDDOWN(fault_addr);
     struct proc *currproc = myproc();
@@ -477,11 +477,12 @@ void page_fault_handler(unsigned int fault_addr){
 	    panic("Namei path");
 	}
 	ilock(ip);
-
 	readi(ip, (char *)&elf, 0, sizeof(elf));
+
 	for(i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)){
 	    if(readi(ip, (char *)&ph, off, sizeof(ph)) != sizeof(ph))
 		panic("Prog header unable to read");
+
 	    if(ph.vaddr <= fault_addr && fault_addr <= ph.vaddr + ph.memsz){
 		// if the file size is enough for the page
 		if(ph.vaddr + ph.filesz >= fault_addr + PGSIZE){
@@ -496,14 +497,17 @@ void page_fault_handler(unsigned int fault_addr){
 			    stosb(mem, 0, PGSIZE);
 			}
 			else{
+			    //memset(mem, 0, ph.memsz - fault_addr);
 			    stosb(mem, 0, ph.memsz - fault_addr);
 			}
 		    }
 		    // if the required page overlaps with (text + data) and bss section
 		    else{
+
 			loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
 			//cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
-			stosb((mem + (ph.filesz - fault_addr)), 0, ph.memsz - ph.filesz);	    
+			stosb((mem + (ph.filesz - fault_addr)), 0, PGSIZE - (ph.filesz - fault_addr));	    
+			ip = namei(currproc->path);
 		    }
 		}
 	    }
