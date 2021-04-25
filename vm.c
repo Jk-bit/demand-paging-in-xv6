@@ -507,7 +507,6 @@ void page_fault_handler(unsigned int fault_addr){
 			loaduvm(currproc->pgdir, (char *)(ph.vaddr + fault_addr), ip, ph.off + fault_addr, ph.filesz - fault_addr);
 			//cprintf("%d\n", readi(ip, (mem), fault_addr, ph.memsz - fault_addr));
 			stosb((mem + (ph.filesz - fault_addr)), 0, PGSIZE - (ph.filesz - fault_addr));	    
-			ip = namei(currproc->path);
 		    }
 		}
 	    }
