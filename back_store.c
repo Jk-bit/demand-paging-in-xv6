@@ -7,7 +7,8 @@
 #include "fs.h"
 #include "buf.h"
 #include "back_store.h"
-
+#include "x86.h"
+#include "memlayout.h"
 
 
 /*
@@ -23,6 +24,42 @@ void backstore_init(){
     }
 }
 
+void storeuvm(struct proc *curproc, uint vaddr, struct inode *ip, uint off, uint filesz, uint memsz){
+    cprintf("vaddr memsz filesz : %d %d %d\n", vaddr, memsz, filesz);
+    for(int i = vaddr; i < memsz; i += PGSIZE){
+	if(i <= filesz){
+	    if(i + PGSIZE <= filesz){
+		if(readi(ip, curproc->buf, off + i, PGSIZE) != PGSIZE){
+		    panic(" here");
+		}
+	    }
+	    else{
+		if(readi(ip, curproc->buf, off + i, filesz - i) != filesz - i){
+		    panic("Here")
+		}
+		if(i + PGSIZE < memsz){
+		    stosb((char *)((curproc->buf) + (filesz - i)), PGSIZE - (filesz - i), 0);
+		}
+		else{
+
+		    cprintf("Here");
+		    stosb((char *)((curproc->buf) + (filesz - i)), memsz - (filesz - i), 0);
+		}
+	    }
+	}
+	else{
+	    if(i + PGSIZE < memsz)
+	       stosb((char *)V2P(curproc->buf), PGSIZE, 0);
+	    else
+		stosb((char *)V2P(curproc->buf), memsz - i, 0);		
+	}
+	cprintf("calling store_page : %d\n", i);
+	if(store_page(curproc, i) != 1){
+	    panic("no memory on backing store to store the code");
+	}
+    }
+}
+
 
 int store_page(struct proc *currproc, uint va){
     uint block_no;
@@ -31,6 +68,8 @@ int store_page(struct proc *currproc, uint va){
 	return -1;
     }
     back_store_allocation[block_no - BACKSTORE_START] = va;
+
+	cprintf("currproc index : %d %d %d\n", currproc->index, va, block_no);
     if(currproc->index == MAX_BACK_PAGES - 1){
 	return -1;
     }

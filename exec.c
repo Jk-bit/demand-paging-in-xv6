@@ -20,6 +20,7 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
 
+    cprintf("index value = %d\n", curproc->index);
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();
@@ -57,8 +58,10 @@ exec(char *path, char **argv)
       goto bad;
     /*if(loaduvm(pgdir, (char*)ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad; */
+    storeuvm(curproc, ph.vaddr, ip, ph.off, ph.filesz, ph.memsz);
       
   }
+  cprintf("sizeof the init %d\n", sz);
   iunlockput(ip);
   end_op();
   ip = 0;
@@ -72,6 +75,7 @@ exec(char *path, char **argv)
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   // buff containing the stack starting from the top
   char *buf = (curproc->buf);
+  stosb(buf, PGSIZE, 0);
   sp = PGSIZE ;
 
   // Storing the argument strings in the buf, prepare rest of stack in ustack.
@@ -79,8 +83,8 @@ exec(char *path, char **argv)
     if(argc >= MAXARG)
       goto bad;
     sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
+    cprintf("sp : %d\n", PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp);
     safestrcpy(&(curproc->buf[sp]), argv[argc], strlen(argv[argc]) + 1);
-
     /*if(copyout(pgdir, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
       goto bad;*/
     ustack[3+argc] = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp;
@@ -108,9 +112,11 @@ exec(char *path, char **argv)
   curproc->pgdir = pgdir;
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
+  cprintf("sp : %d\n", PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp);
   curproc->tf->esp = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp;
   switchuvm(curproc);
   freevm(oldpgdir);
+  cprintf("exefinishedc");
   return 0;
 
  bad:

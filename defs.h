@@ -200,6 +200,7 @@ int		store_page(struct proc *currproc, uint va);
 uint		get_free_block();
 void		backstore_init();
 void		freebs();
+void		storeuvm(struct proc *, uint, struct inode*, uint, uint, uint);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
