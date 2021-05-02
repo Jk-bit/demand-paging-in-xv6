@@ -42,11 +42,11 @@ struct proc {
   uint raw_elf_size;	       // Size of the raw elf file (bytes)
   char buf[PGSIZE];	       // buffer to store the each process page into the block
   char path[20];
-  int back_blocks[MAX_BACK_PAGES];
-  int index;
   uint avl;
   uint codeonbs;
   struct bsframe *blist;
+  uint page_faults;
+  uint page_ins;
   /*************************************************************/
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process

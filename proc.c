@@ -90,7 +90,6 @@ allocproc(void)
 
 found:
   p->blist = 0;
-  p->index = 0;
   p->avl = 0;
   p->codeonbs = 0;
   p->state = EMBRYO;
@@ -285,7 +284,10 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-    
+    cprintf("**************page faults for the process %s are %d*************************\n", curproc->name, curproc->page_faults);    
+    cprintf("**************page in for the process %s are %d*****************************\n", curproc->name, curproc->page_ins);
+    curproc->page_ins = 0;
+    curproc->page_faults = 0;
   if(curproc == initproc){
     panic("init exiting");
 }

@@ -9,12 +9,20 @@
 #include "back_store.h"
 
 /*
- * @breif stores the currproc->buf which contains the page to 
- * be page out in the backing store
- * @param currproc : pointer to process which needs to page out the buffer
- * @param va : The starting virtual address of the page whose buff is going to be page out.
+ *  Mapping of backing store
+ *
+ *	Every process contains the pointer blist which points to the first
+ *	bframe of the backing store, if the value of the next index of the
+ *	first frame is -1 the list ends otherwise it denotes to the next possible
+ *	bsframe.
+ *	
+ *	struct bsframe -> contains the virtual address and the next index if present
  */
 
+
+/*
+ *  @breif : Initializes all the values in the va value of all bsframes to -1
+ */
 void backstore_init(){
     initlock(&back_store.lock, "back_store");
     for(int i = 0; i <BACKSTORE_SIZE/8; i++){
@@ -22,15 +30,22 @@ void backstore_init(){
     }
 }
 
-
+/*
+ *  @breif : stores the page in the backing store mapping to the 
+ *	     virtual address va, where the content of the page is stored 
+ *	     in curproc->buf
+ *  @param1 : pointer to the process
+ *  @param2 : virtual address
+ *  @retval : returns -1 on failure and 1 on sucess
+ */
 int store_page(struct proc *currproc, uint va){
     uint block_no;
     struct buf *frame;
     int i, j;
     int current_index;
-    //cprintf("currproc->index : %d\n",currproc->index);
     struct bsframe *temp = currproc->blist;
     struct bsframe *prev = temp;
+    // if the blist is empty start it
     if(currproc->blist == 0){
 	if((block_no = get_free_block()) == -1){
 	    return -1;
@@ -50,6 +65,7 @@ int store_page(struct proc *currproc, uint va){
 	    //cprintf("got index : %d\n", i);
 	return 1;
     }
+    // finding if the virtual address for the given process is stored on the backing store
     while(1){
 	if((uint)temp->va == va){
 	    current_index = ((uint)temp - (uint)(back_store.back_store_allocation)) / sizeof(struct bsframe);
@@ -70,19 +86,6 @@ int store_page(struct proc *currproc, uint va){
 	prev = temp;
 	temp = &(back_store.back_store_allocation[temp->next_index]);
     }
-    /*for(i = 0; i < currproc->index; i++){
-	if((back_store_allocation[(currproc->back_blocks[i] - BACKSTORE_START) / 8]) == va){
-	    block_no = currproc->back_blocks[i];
-	    for(j = 0; j < 8; j++){
-		frame = bget(ROOTDEV, block_no + j);
-		memmove(frame->data, currproc->buf + BSIZE*j, BSIZE);
-		bwrite(frame);
-		brelse(frame);
-	    }
-	    //cprintf("got index : %d\n", i);
-	    return 1;
-	}
-    }*/
     if((block_no = get_free_block()) == -1){
 	return -1;
     }
@@ -106,7 +109,9 @@ int store_page(struct proc *currproc, uint va){
     return 1; 
 }
 
-
+/*
+ *  @breif : finds the freeblock in the backing store and returns the block no
+ */
 uint get_free_block(){
     int i;
     for(i = 0; i < BACKSTORE_SIZE/8; i++){
@@ -116,7 +121,9 @@ uint get_free_block(){
     }
     return -1;
 }
-
+/*
+ *  @breif : frees the bacling store for the given process
+ */
 void freebs(struct proc *curproc){
     /*for(int i = 0; i < curproc->index; i++){
 	back_store_allocation[(curproc->back_blocks[i] - BACKSTORE_START) / 8] = -1;

@@ -12,5 +12,4 @@
 #define NBUF			(MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE			1000  // size of file system in blocks
 #define BACKSTORE_START		1100 // starting block of the backing store
-#define BACKSTORE_SIZE		458752 //size of the backing store in blocks 				
-#define MAX_BACK_PAGES		500
+#define BACKSTORE_SIZE		458752 //size of the backing store in blocks(224 MB) 	(224 * 1024 * 1024) / 512 blocks
