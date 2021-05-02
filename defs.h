@@ -190,10 +190,11 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 void		clearptep(pde_t *pgdir, char *uva);
+void		page_replacement(struct proc *);
 
 // dem_pag.c
 void		page_fault_handler(unsigned int fault_addr);
-void		load_frame(char *pa, char *va);
+int		load_frame(char *pa, char *va);
 
 // back_store.c
 int		store_page(struct proc *currproc, uint va);

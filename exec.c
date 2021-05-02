@@ -19,6 +19,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+    freebs(curproc);
 
   begin_op();
   if((ip = namei(path)) == 0){
@@ -94,6 +95,7 @@ exec(char *path, char **argv)
   /*if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
     goto bad;*/
   memmove(buf + sp, ustack, (3 + argc + 1)*4);
+  //cprintf("stack ; sp %d %d\n", sz - 1*PGSIZE, PGROUNDUP(curproc->raw_elf_size) +PGSIZE + sp);
   if(store_page(curproc, sz - 1*PGSIZE) < 0){
     panic("no memory to save stack in backing store");
   }
@@ -102,11 +104,13 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
+    
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
+  curproc->avl = 0;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = PGROUNDUP(curproc->raw_elf_size) + PGSIZE + sp;
   switchuvm(curproc);

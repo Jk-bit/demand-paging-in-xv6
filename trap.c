@@ -87,7 +87,7 @@ trap(struct trapframe *tf)
      * The hardware setups the cr2 register with the address
      * that resulted to page fault
      */
-    cprintf("in trap pid: %d\n", myproc()->pid);
+    //cprintf("in trap pid: %d\n", myproc()->pid);
     page_fault_handler(rcr2());
     lapiceoi();
     break;

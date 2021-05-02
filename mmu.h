@@ -89,7 +89,7 @@ struct segdesc {
 
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
-
+#define GETAVL(avl)    ((avl << 9))
 // Page table/directory entry flags.
 #define PTE_P           0x001   // Present
 #define PTE_W           0x002   // Writeable
@@ -98,7 +98,8 @@ struct segdesc {
 
 // Address in page table or page directory entry
 #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
-#define PTE_FLAGS(pte)  ((uint)(pte) &  0xFFF)
+#define PTE_FLAGS(pte)  ((uint)(pte) &  0x1FF)
+#define PTE_AVL(pte)	((uint)(pte) & 0xE00)
 
 #ifndef __ASSEMBLER__
 typedef uint pte_t;

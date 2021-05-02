@@ -44,6 +44,8 @@ struct proc {
   char path[20];
   int back_blocks[MAX_BACK_PAGES];
   int index;
+  uint avl;
+  uint codeonbs;
   /*************************************************************/
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process

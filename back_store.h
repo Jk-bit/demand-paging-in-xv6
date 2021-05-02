@@ -1,1 +1,1 @@
-int back_store_allocation[BACKSTORE_SIZE/8];
+uint back_store_allocation[BACKSTORE_SIZE/8];

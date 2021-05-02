@@ -89,6 +89,8 @@ allocproc(void)
 
 found:
   p->index = 0;
+  p->avl = 0;
+  p->codeonbs = 0;
   p->state = EMBRYO;
   p->pid = nextpid++;
 
@@ -178,7 +180,7 @@ growproc(int n)
     for(int i = 0; i < npages; i++){
 	memset(curproc->buf, 0, PGSIZE);
 	//stosb(curproc->buf, 0, PGSIZE);
-	ret = store_page(curproc, initial_sz);
+	ret = store_page(curproc, initial_sz + i * PGSIZE);
 	if(ret < 0){
 	    return -1;
 	}
@@ -268,6 +270,7 @@ fork(void)
 void
 exit(void)
 {
+    //cprintf("in exit");
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;

@@ -47,8 +47,9 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
   } else {
-    if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
-      return 0;
+    if(!alloc || (pgtab = (pte_t*)kalloc()) == 0){
+	return 0;
+    }
     // Make sure all those PTE_P bits are zero.
     memset(pgtab, 0, PGSIZE);
     // The permissions here are overly generous, but they can
@@ -63,7 +64,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 // physical addresses starting at pa. va and size might not
 // be page-aligned.
 static int
-mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm, int avl)
 {
   char *a, *last;
   pte_t *pte;
@@ -76,7 +77,7 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
     if(*pte & PTE_P){
 	panic("remap");
     }
-    *pte = pa | perm ;
+    *pte = pa | perm | avl;
     if(a == last)
       break;
     a += PGSIZE;
@@ -134,7 +135,7 @@ setupkvm(void)
     panic("PHYSTOP too high");
   for(k = kmap; k < &kmap[NELEM(kmap)]; k++)
     if(mappages(pgdir, k->virt, k->phys_end - k->phys_start,
-                (uint)k->phys_start, k->perm | PTE_P ) < 0) {
+                (uint)k->phys_start, k->perm | PTE_P , 0) < 0) {
       freevm(pgdir);
       return 0;
     }
@@ -193,7 +194,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
     panic("inituvm: more than a page");
   mem = kalloc();
   memset(mem, 0, PGSIZE);
-  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U|PTE_P);
+  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U|PTE_P, 0);
   memmove(mem, init, sz);
 }
 
@@ -243,7 +244,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       return 0;
     }*/
     //memset(mem, 0, PGSIZE);
-    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U, 0) < 0){
       cprintf("allocuvm out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
       kfree(mem);
@@ -336,6 +337,7 @@ copyuvm(struct proc *dst, struct proc *src)
   pte_t *pte;
   uint i, flags, pa;
   char *mem = 0;
+  int avl = 0;
     //char *stack_page;
   if((d = setupkvm()) == 0)
     return 0;
@@ -343,19 +345,19 @@ copyuvm(struct proc *dst, struct proc *src)
     if((pte = walkpgdir(src->pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P)){
-      if(mappages(d, (char*)i, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0) {
-	kfree(mem);
+      if(mappages(d, (char*)i, PGSIZE, V2P(mem), PTE_W | PTE_U, 0) < 0) {
 	goto bad;
       }
     }
     else{
 	pa = PTE_ADDR(*pte);
 	flags = PTE_FLAGS(*pte);
+	avl = PTE_AVL(*pte);
 	if((mem = kalloc()) == 0){
 	    goto bad;
 	}	
 	memmove(mem, (char *)P2V(pa), PGSIZE);
-	if(mappages(d, (char *)i, PGSIZE, V2P(mem), flags) < 0){
+	if(mappages(d, (char *)i, PGSIZE, V2P(mem), flags, avl) < 0){
 	    kfree(mem);
 	    goto bad;
 	}
@@ -442,6 +444,7 @@ void page_fault_handler(unsigned int fault_addr){
     // rounding it down to the base address of the page
     //if the required address is beyond the user memory space 
     //checked in usertests.c --> sbrktest()
+    uint avl;
     if((uint)fault_addr >= KERNBASE){
 	cprintf("crossed the boundary of the user memory\n");
 	myproc()->killed = 1;
@@ -450,25 +453,56 @@ void page_fault_handler(unsigned int fault_addr){
     }
     fault_addr = PGROUNDDOWN(fault_addr);
     struct proc *currproc = myproc();
+
     struct elfhdr elf;
     struct proghdr ph;
     struct inode *ip;
     int i, off;
-    char *mem = kalloc();
+    char *mem;
+    int loaded = 0;
+    //pte_t *pte;
+    //uint eip = currproc->tf->eip;
+    //cprintf("I am back");
+    //cprintf("faultaddress : %d\n", fault_addr);
+/*back:mem = kalloc();
     if(mem == 0){
-	//cprintf("%d", myproc()->pid);
-	panic("No memory");
-	//page_replacement(fault_addr);
+	cprintf("fault address sz : %d %d\n", fault_addr, currproc->sz);
+	page_replacement(currproc);
+	goto back;
+    } */
+    while((mem = kalloc()) == 0){
+	//cprintf("fault address %d\n", fault_addr);
+	page_replacement(currproc);
     }
-    if(mappages(currproc->pgdir, (char *)fault_addr, PGSIZE, V2P(mem), PTE_W | PTE_U | PTE_P) < 0){
+    if(currproc->avl < 8){
+	
+	//cprintf("fault addrs : %d %d\n", fault_addr, currproc->avl);
+	(currproc->avl) += 1;
+    }
+    //cprintf("currproc in ipid, pgflt : %d %d\n",currproc->pid, currproc->avl);
+    avl = GETAVL(((currproc->avl) - 1));
+	//cprintf("checking av : %d\n", avl);
+    if(mappages(currproc->pgdir, (char *)fault_addr, PGSIZE, V2P(mem), PTE_W | PTE_U | PTE_P, avl) < 0){
 	    panic("mappages");
     }
+    /*pte = walkpgdir(currproc->pgdir, (void *)fault_addr, 0);
+    if(*pte & PTE_P)
+	cprintf("Good");
+    if(pte == 0){
+	cprintf("fault address %d\n", fault_addr);
+	panic("page faulthandller : pgdir not allocated");
+    }*/
+    //*pte = V2P(mem) | avl | PTE_W | PTE_U | PTE_P;  
     // if the page is from stack or heap
-    if(currproc->raw_elf_size < fault_addr){
-	load_frame(mem, (char *)fault_addr);
+    if((fault_addr > currproc->raw_elf_size ||  currproc->codeonbs) && load_frame(mem, (char *)fault_addr) == 1){
+	//cprintf("Here we loaded zero");
+	loaded = 1;
+	loaded++;
     }
+    
     // if the faulted page is from the elf
     else{
+
 	//ip from the path
 	begin_op();
 	ip = namei(currproc->path);
@@ -518,12 +552,81 @@ void page_fault_handler(unsigned int fault_addr){
 }    
 
 /* TODO Not part of academic project but trying to implement in future
- * @breif planning to implement local page replacement
- * algorithm
- * @param1 fault_addr : virtual address which caused the fault
+ * @param1 struct currproc : structure of the process
  */
-void page_replacement(unsigned int fault_addr){
+void page_replacement(struct proc *currproc){
+    pte_t *pte;
+    uint i;
+    uint avl = 8, pa = 0, min_va = currproc->sz;
+    //uint dummy;
+    uint flags;
+    char reach_avl_max = 0;
+    uint pte_avl;
+    //if this is the case its process first page we need to look for pages from other 
+    //priocess therefore we need to look for global replacement
+    //cprintf("eip %d\n" , currproc->tf->eip);
+    if(currproc->avl == 0){
+	panic("global replacement");
+    }
+    else{
+	//cprintf("currproc sz : %d\n", currproc->sz);
+	for(i = 0; i < (currproc->sz); i += PGSIZE){
+	    if(i == PGROUNDUP(currproc->raw_elf_size))
+		continue;
+	    if((pte = walkpgdir(currproc->pgdir, (void *)i, 0)) == 0){
+		panic("page replacement : copyuvm should exist");
+	    }
+	    if(*pte & (PTE_P)){
+		//cprintf("currproc-sz : %d\n", currproc->sz);
+		pa = PTE_ADDR(*pte); 
+		flags = PTE_FLAGS(*pte);
+		//cprintf("virual address : %d\n", i );
+		//flags = PTE_FLAGS(*pte);
+		//cprintf("avl, realavl%d %d\n", avl, PTE_AVL(*pte) >> 9);
+		if(avl > (PTE_AVL(*pte) >> 9)){
+		    avl =  PTE_AVL(*pte) >> 9;
+		    //cprintf("avl : %d\n",avl);
+		    min_va = i;
+		}
+		//*pte = *pte & ~(0xE00);
+		if((uint)(PTE_AVL(*pte) >> 9) > 0 ){
+		    pte_avl = PTE_AVL(*pte) >> 9;
+		    //cprintf("decreasing avl : %d\n", (((PTE_AVL(*pte) >> 9) - 1)) );
+		    if(pte_avl == 7 ){
+			if(reach_avl_max == 0){
+			    reach_avl_max = 1;
+			  //  *pte = pa |  GETAVL((pte_avl - 1)) | flags;
+			
+			}
+			else
+			    continue;
+		    }
+		    *pte = pa |  GETAVL((pte_avl - 1)) | flags ;
+		}
+		//*pte = pa | GETAVL(((PTE_AVL(*pte)>>9) - 1)) | flags;
+		//*pte = *pte | GETAVL((avl - 1));
+	    }
+		
+	}
     
+	//cprintf("min_va : %d\n", min_va);
+	pte = walkpgdir(currproc->pgdir, (void *)min_va, 0);
+	pa = PTE_ADDR(*pte);
+	//if((*pte & 0x40)){
+	    //cprintf("I am dirty");
+	    memmove((currproc->buf), (char *)P2V(pa), PGSIZE);
+	    if(store_page(currproc, min_va) == -1){
+		panic("Backing store size over");
+	    }
+//	}
+	//*pte = *pte & 0xFFFFF000;
+	*pte = pa | PTE_W | PTE_U;
+	//*pte = *pte;
+	char *va = P2V(pa);
+	currproc->codeonbs = 1;
+//	cprintf("pa : PHYSTOP end %d %d %d\n", (pa), PHYSTOP, end);
+	kfree(va);
+    }
 }
 
 /*
@@ -532,23 +635,25 @@ void page_replacement(unsigned int fault_addr){
  * @param1 : physical address in the memory
  * @param2 : virtual/logical address of the memory ??is this needed??
  */
-void load_frame(char *pa, char *va){
+int load_frame(char *pa, char *va){
     struct buf *buff;
     struct proc *currproc = myproc();
     int i, j;
-    for(i = 0; i < MAX_BACK_PAGES; i++){
-	if(back_store_allocation[currproc->back_blocks[i] - BACKSTORE_START] == (int)va){
+    for(i = 0; i < currproc->index; i++){
+	if(back_store_allocation[(currproc->back_blocks[i] - BACKSTORE_START) / 8] == (uint)va){
+	    //cprintf("GOT %d\n", i);
 	    break;
 	}
     }
     
-    if(i < MAX_BACK_PAGES){
+    if(i < currproc->index){
 	for(j = 0; j < 8; j++){
 	    buff = bread(ROOTDEV, (currproc->back_blocks[i]) + j);
 	    memmove((pa + BSIZE * j), buff->data, BSIZE);
 	    brelse(buff);
 	}
-	return;
+	return 1;
     }
     //panic("No such frame in backing store");
+    return -1;
 }
