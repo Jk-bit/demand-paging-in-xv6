@@ -46,6 +46,7 @@ struct proc {
   int index;
   uint avl;
   uint codeonbs;
+  struct bsframe *blist;
   /*************************************************************/
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process

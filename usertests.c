@@ -437,14 +437,17 @@ mem(void)
   if((pid = fork()) == 0){
     m1 = 0;
     while((m2 = malloc(10001)) != 0){
+	printf(1, "in 1st malloc");
       *(char**)m2 = m1;
       m1 = m2;
     }
     while(m1){
+	printf(1, "in m1");
       m2 = *(char**)m1;
       free(m1);
       m1 = m2;
     }
+    printf(1, "freeing done");
     m1 = malloc(1024*20);
     if(m1 == 0){
       printf(1, "couldn't allocate mem?!!\n");
@@ -453,10 +456,12 @@ mem(void)
     }
     free(m1);
     printf(1, "mem ok\n");
+    
     exit();
   } else {
     wait();
   }
+  printf(1, "****************memtest done***********************");
 }
 
 // More file system tests
@@ -1763,7 +1768,6 @@ main(int argc, char *argv[])
 {
   stdout = 1;
   printf(1, "usertests starting\n");
-  printf(1, "address of stdout : %d\n", &stdout);
 
   if(open("usertests.ran", 0) >= 0){
     printf(1, "already ran user tests -- rebuild fs.img\n");
@@ -1771,7 +1775,7 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
- argptest();
+ /*argptest();
   createdelete(); 
 linkunlink(); 
 concreate();
@@ -1792,10 +1796,10 @@ sbrktest();
 
   openiputtest();
   exitiputtest();
-  iputtest(); 
+  iputtest(); */
 
   mem(); //does not work
-  pipe1();
+  /*pipe1();
   preempt();
   exitwait();
 
@@ -1812,7 +1816,7 @@ sbrktest();
 
   uio();
 
- exectest();
+ exectest();*/
 
   exit(); 
 }

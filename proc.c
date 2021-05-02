@@ -14,7 +14,6 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -88,6 +87,7 @@ allocproc(void)
   return 0;
 
 found:
+  p->blist = 0;
   p->index = 0;
   p->avl = 0;
   p->codeonbs = 0;
@@ -176,11 +176,15 @@ growproc(int n)
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){
             return -1;
     }
+    // no of pages required by malloc
     npages = (PGROUNDUP(sz) - PGROUNDUP(initial_sz))/PGSIZE;
     for(int i = 0; i < npages; i++){
+	//zeroing the buffer
 	memset(curproc->buf, 0, PGSIZE);
 	//stosb(curproc->buf, 0, PGSIZE);
+	//storing the buffer in the backing store with virtual address (initial_sz + i * PGSIZE)_
 	ret = store_page(curproc, initial_sz + i * PGSIZE);
+	// if the backing store is full
 	if(ret < 0){
 	    return -1;
 	}
@@ -238,6 +242,8 @@ fork(void)
     *pte = *pte;
   } */ 
   np->sz = curproc->sz;
+  np->avl = curproc->avl;
+  //np->blist = curproc->blist;
   np->raw_elf_size = curproc->raw_elf_size;
   np->parent = curproc;
   *np->tf = *curproc->tf;

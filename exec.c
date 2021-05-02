@@ -20,7 +20,7 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
     freebs(curproc);
-
+    curproc->blist = 0;
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();

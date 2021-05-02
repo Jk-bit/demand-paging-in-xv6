@@ -246,8 +246,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     //memset(mem, 0, PGSIZE);
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U, 0) < 0){
       cprintf("allocuvm out of memory (2)\n");
-      deallocuvm(pgdir, newsz, oldsz);
-      kfree(mem);
+      /*deallocuvm(pgdir, newsz, oldsz);
+      kfree(mem);*/
       return 0;
     }
   }
@@ -638,8 +638,30 @@ void page_replacement(struct proc *currproc){
 int load_frame(char *pa, char *va){
     struct buf *buff;
     struct proc *currproc = myproc();
-    int i, j;
-    for(i = 0; i < currproc->index; i++){
+    //int i, j;
+    int j;
+    struct bsframe *temp = currproc->blist;
+    int current_index;
+    uint block_no;
+    while(1){
+	if((char *)(temp->va) == va){
+	    current_index = ((uint)temp - (uint)(back_store.back_store_allocation)) / sizeof(struct bsframe);
+	    block_no = BACKSTORE_START + current_index * 8;
+	    break;
+	}
+	if(temp->next_index == -1){
+	    return -1;
+	}
+	temp = &(back_store.back_store_allocation[temp->next_index]);
+    }
+    for(j = 0; j < 8; j++){
+	    buff = bread(ROOTDEV, (block_no) + j);
+	    memmove((pa + BSIZE * j), buff->data, BSIZE);
+	    brelse(buff);
+    }
+    return 1;
+
+    /*for(i = 0; i < currproc->index; i++){
 	if(back_store_allocation[(currproc->back_blocks[i] - BACKSTORE_START) / 8] == (uint)va){
 	    //cprintf("GOT %d\n", i);
 	    break;
@@ -653,7 +675,6 @@ int load_frame(char *pa, char *va){
 	    brelse(buff);
 	}
 	return 1;
-    }
+    }*/
     //panic("No such frame in backing store");
-    return -1;
 }
