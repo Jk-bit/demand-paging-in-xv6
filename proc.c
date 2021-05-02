@@ -13,6 +13,8 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+uint max_heap_mem = 3 * 1024 * 1024;
+
 static struct proc *initproc;
 int nextpid = 1;
 extern void forkret(void);
@@ -171,6 +173,9 @@ growproc(int n)
   struct proc *curproc = myproc();
     uint npages = 0;
   sz = curproc->sz;
+  if(sz + n - (PGROUNDUP(curproc->raw_elf_size) + 2*PGSIZE) > max_heap_mem){
+    return -1;
+  }
   initial_sz = sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0){

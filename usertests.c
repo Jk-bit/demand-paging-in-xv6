@@ -431,23 +431,19 @@ mem(void)
 {
   void *m1, *m2;
   int pid, ppid;
-
-  printf(1, "mem test\n");
+    printf(1, "mem test");
   ppid = getpid();
   if((pid = fork()) == 0){
     m1 = 0;
     while((m2 = malloc(10001)) != 0){
-	printf(1, "in 1st malloc");
       *(char**)m2 = m1;
       m1 = m2;
     }
     while(m1){
-	printf(1, "in m1");
       m2 = *(char**)m1;
       free(m1);
       m1 = m2;
     }
-    printf(1, "freeing done");
     m1 = malloc(1024*20);
     if(m1 == 0){
       printf(1, "couldn't allocate mem?!!\n");
@@ -461,7 +457,7 @@ mem(void)
   } else {
     wait();
   }
-  printf(1, "****************memtest done***********************");
+ // printf(1, "****************memtest done***********************");
 }
 
 // More file system tests
@@ -600,14 +596,12 @@ createdelete(void)
 
   for(pi = 0; pi < 4; pi++){
     pid = fork();
-    printf(1, "forked\n");
     if(pid < 0){
       printf(1, "fork failed\n");
       exit();
     }
 
     if(pid == 0){
-	printf(1, "child\n");
       name[0] = 'p' + pi;
       name[2] = '\0';
       for(i = 0; i < N; i++){
@@ -1775,7 +1769,7 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
- /*argptest();
+ argptest();
   createdelete(); 
 linkunlink(); 
 concreate();
@@ -1796,10 +1790,10 @@ sbrktest();
 
   openiputtest();
   exitiputtest();
-  iputtest(); */
+  iputtest(); 
 
-  mem(); //does not work
-  /*pipe1();
+  mem(); 
+  pipe1();
   preempt();
   exitwait();
 
@@ -1816,7 +1810,7 @@ sbrktest();
 
   uio();
 
- exectest();*/
+ exectest();
 
   exit(); 
 }
